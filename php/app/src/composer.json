@@ -1,0 +1,19 @@
+{
+    "name": "seu-projeto/metrics",
+    "description": "Exemplo de métricas com Prometheus e OpenTelemetry",
+    "require": {
+        "php": "^8.0",
+        "open-telemetry/opentelemetry": "^1.0",
+        "promphp/prometheus_client_php": "^2.8"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "minimum-stability": "stable"
+}

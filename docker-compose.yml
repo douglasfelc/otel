@@ -1,0 +1,69 @@
+# version: '3.8'
+
+services:
+  php:
+    build: ./php
+    container_name: php-app
+    ports:
+      - "8080:80"
+    volumes:
+      - ./php/app/src:/var/www/html
+      - ./php/config/000-default.conf:/etc/apache2/sites-available/000-default.conf
+      - ./php/config/.htaccess:/var/www/html/.htaccess
+    environment:
+      - OTEL_SERVICE_NAME=php-app
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_PHP_AUTOLOAD_ENABLED=true
+      - OTEL_TRACES_EXPORTER=console
+      - OTEL_METRICS_EXPORTER=none
+      - OTEL_LOGS_EXPORTER=none
+      - OTEL_PROPAGATORS=baggage,tracecontext
+    depends_on:
+      - otel-collector
+
+  node:
+    image: node:16
+    container_name: node-app
+    working_dir: /usr/src/app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./node/app:/usr/src/app
+    command: ["npm", "start"]
+    environment:
+      - OTEL_SERVICE_NAME=node-app
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    depends_on:
+      - otel-collector
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.83.0
+    container_name: otel-collector
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "55681:55681" # OTLP HTTP
+    volumes:
+      - ./otel/config/otel-config.yaml:/etc/otel-collector-config.yaml
+    command:
+      ["--config=/etc/otel-collector-config.yaml"]
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.46
+    container_name: jaeger
+    ports:
+      - "16686:16686" # UI do Jaeger
+      - "14268:14268" # Entrada HTTP para spans
+
+  grafana:
+    image: grafana/grafana-oss:10.0.0
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana:/var/lib/grafana
+    depends_on:
+      - jaeger
