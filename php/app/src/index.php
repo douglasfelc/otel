@@ -8,20 +8,24 @@ use Prometheus\CollectorRegistry;
 use Prometheus\RenderTextFormat;
 use Prometheus\Storage\InMemory;
 
-// Configuração do Prometheus
+// ─── Configuração do Prometheus ─────────────────────────────────────────────
 $registry = new CollectorRegistry(new InMemory());
-$counter = $registry->getOrRegisterCounter('app', 'requests_total', 'Total de requisições recebidas');
+$requestsCounter = $registry->getOrRegisterCounter('app', 'requests_total', 'Total de requisições recebidas');
+$errorsCounter = $registry->getOrRegisterCounter('app', 'errors_total', 'Total de erros lançados');
 
-// Configuração do OpenTelemetry
+// ─── Configuração do OpenTelemetry (Meter) ──────────────────────────────────
 $meterProvider = Globals::meterProvider();
+/** @var MeterProviderInterface $meterProvider */
 $meter = $meterProvider->getMeter('app');
-$requestCounter = $meter->createCounter('requests_total', 'Total de requisições recebidas');
 
-// Incrementa as métricas
-$counter->inc();
-$requestCounter->add(1);
+$otelRequestsCounter = $meter->createCounter('requests_total', 'Total de requisições recebidas');
+$otelErrorsCounter = $meter->createCounter('errors_total', 'Total de erros lançados');
 
-// Verifica se a URI é '/metrics' e expõe as métricas no formato Prometheus
+// ─── Incrementa as métricas de requisição ───────────────────────────────────
+$requestsCounter->inc();
+$otelRequestsCounter->add(1);
+
+// ─── Rota /metrics para Prometheus ──────────────────────────────────────────
 if (parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) === '/metrics') {
     header('Content-Type: ' . RenderTextFormat::MIME_TYPE);
     $renderer = new RenderTextFormat();
@@ -29,5 +33,21 @@ if (parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) === '/metrics') {
     exit;
 }
 
-// Exibe mensagem padrão para qualquer outra requisição
+// ─── Simulação de erro com throw ────────────────────────────────────────────
+try {
+    // Simulando um erro:
+    throw new Exception("Simulação de erro na aplicação");
+
+} catch (Throwable $e) {
+    // Incrementa as métricas de erro
+    $errorsCounter->inc();
+    $otelErrorsCounter->add(1);
+
+    // Retorna erro HTTP
+    http_response_code(500);
+    echo "Erro capturado: " . $e->getMessage();
+    exit;
+}
+
+// Em caso de sucesso (não chegou a acontecer no exemplo acima)
 echo "Métricas disponíveis em /metrics";
